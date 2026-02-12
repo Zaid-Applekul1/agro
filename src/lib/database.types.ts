@@ -81,6 +81,188 @@ export interface Database {
           title?: string
           user_id?: string | null
         }
+      spray_chemicals: {
+        Row: {
+          active_ingredient: string | null
+          created_at: string | null
+          crop: string | null
+          dose_max: number | null
+          dose_min: number | null
+          dose_unit: string | null
+          id: string
+          name: string
+          notes: string | null
+          phi_days: number | null
+          rei_hours: number | null
+          target_pest: string | null
+          user_id: string | null
+        }
+        Insert: {
+          active_ingredient?: string | null
+          created_at?: string | null
+          crop?: string | null
+          dose_max?: number | null
+          dose_min?: number | null
+          dose_unit?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phi_days?: number | null
+          rei_hours?: number | null
+          target_pest?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          active_ingredient?: string | null
+          created_at?: string | null
+          crop?: string | null
+          dose_max?: number | null
+          dose_min?: number | null
+          dose_unit?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phi_days?: number | null
+          rei_hours?: number | null
+          target_pest?: string | null
+          user_id?: string | null
+        }
+      }
+      spray_programs: {
+        Row: {
+          created_at: string | null
+          crop: string | null
+          id: string
+          name: string
+          notes: string | null
+          stage: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          crop?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          stage?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          crop?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          stage?: string | null
+          user_id?: string | null
+        }
+      }
+      spray_program_items: {
+        Row: {
+          chemical_id: string | null
+          created_at: string | null
+          dose_rate: number | null
+          dose_unit: string | null
+          id: string
+          interval_days: number | null
+          notes: string | null
+          program_id: string
+          sort_order: number | null
+          user_id: string | null
+        }
+        Insert: {
+          chemical_id?: string | null
+          created_at?: string | null
+          dose_rate?: number | null
+          dose_unit?: string | null
+          id?: string
+          interval_days?: number | null
+          notes?: string | null
+          program_id: string
+          sort_order?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          chemical_id?: string | null
+          created_at?: string | null
+          dose_rate?: number | null
+          dose_unit?: string | null
+          id?: string
+          interval_days?: number | null
+          notes?: string | null
+          program_id?: string
+          sort_order?: number | null
+          user_id?: string | null
+        }
+      }
+      spray_logs: {
+        Row: {
+          applied_at: string
+          area_kanal: number | null
+          chemical_id: string | null
+          compliance_notes: string | null
+          compliance_status: string | null
+          created_at: string | null
+          dose_rate: number
+          dose_unit: string | null
+          field_id: string | null
+          id: string
+          mix_volume_liters: number | null
+          notes: string | null
+          orchard_id: string | null
+          phi_days: number | null
+          program_id: string | null
+          rei_hours: number | null
+          target_issue: string | null
+          total_product: number | null
+          tree_block_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          applied_at: string
+          area_kanal?: number | null
+          chemical_id?: string | null
+          compliance_notes?: string | null
+          compliance_status?: string | null
+          created_at?: string | null
+          dose_rate: number
+          dose_unit?: string | null
+          field_id?: string | null
+          id?: string
+          mix_volume_liters?: number | null
+          notes?: string | null
+          orchard_id?: string | null
+          phi_days?: number | null
+          program_id?: string | null
+          rei_hours?: number | null
+          target_issue?: string | null
+          total_product?: number | null
+          tree_block_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          applied_at?: string
+          area_kanal?: number | null
+          chemical_id?: string | null
+          compliance_notes?: string | null
+          compliance_status?: string | null
+          created_at?: string | null
+          dose_rate?: number
+          dose_unit?: string | null
+          field_id?: string | null
+          id?: string
+          mix_volume_liters?: number | null
+          notes?: string | null
+          orchard_id?: string | null
+          phi_days?: number | null
+          program_id?: string | null
+          rei_hours?: number | null
+          target_issue?: string | null
+          total_product?: number | null
+          tree_block_id?: string | null
+          user_id?: string | null
+        }
+      }
       }
       dead_tree_records: {
         Row: {
@@ -963,6 +1145,73 @@ export interface Database {
           last_updated?: string | null
           name?: string
           planting_date?: string
+          user_id?: string | null
+        }
+      }
+      plantation_rows: {
+        Row: {
+          created_at: string | null
+          field_id: string
+          id: string
+          notes: string | null
+          planting_date: string | null
+          rootstock_type: string | null
+          row_number: number
+          user_id: string | null
+          variety: string
+        }
+        Insert: {
+          created_at?: string | null
+          field_id: string
+          id?: string
+          notes?: string | null
+          planting_date?: string | null
+          rootstock_type?: string | null
+          row_number: number
+          user_id?: string | null
+          variety: string
+        }
+        Update: {
+          created_at?: string | null
+          field_id?: string
+          id?: string
+          notes?: string | null
+          planting_date?: string | null
+          rootstock_type?: string | null
+          row_number?: number
+          user_id?: string | null
+          variety?: string
+        }
+      }
+      plantation_trees: {
+        Row: {
+          created_at: string | null
+          id: string
+          notes: string | null
+          planted_date: string | null
+          row_id: string
+          status: string
+          tree_number: number
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          planted_date?: string | null
+          row_id: string
+          status: string
+          tree_number: number
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          planted_date?: string | null
+          row_id?: string
+          status?: string
+          tree_number?: number
           user_id?: string | null
         }
       }

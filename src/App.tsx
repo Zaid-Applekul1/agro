@@ -19,6 +19,7 @@ import { SupplierLedger } from './components/SupplierLedger';
 import { BudgetPlanner } from './components/BudgetPlanner';
 import { NurseryManagement } from './components/NurseryManagement';
 import { OrchardROI } from './components/OrchardROI';
+import { SprayManagement } from './components/SprayManagement';
 
 function App() {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
@@ -41,6 +42,7 @@ function App() {
       case 'budgets': return <BudgetPlanner />;
       case 'nursery': return <NurseryManagement />;
       case 'roi': return <OrchardROI />;
+      case 'spray': return <SprayManagement />;
       case 'profile': return <ProfileSettings />;
       case 'users': return <UserManagement />;
       default: return <Dashboard onNavigate={setCurrentView} />;
