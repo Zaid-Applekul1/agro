@@ -8,6 +8,7 @@ import { useTrees } from '../hooks/useTrees';
 import { usePestTreatments } from '../hooks/usePestTreatments';
 import { useOrchards } from '../hooks/useOrchards';
 import { useNursery } from '../hooks/useNursery';
+import { useSprayPrograms } from '../hooks/useSprayPrograms';
 import { ViewType } from '../types';
 import {
   TrendingUp,
@@ -57,8 +58,9 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const { pestTreatments, loading: pestLoading } = usePestTreatments();
   const { orchards, treePoints, loading: orchardsLoading } = useOrchards();
   const { batches: nurseryBatches, mortality: nurseryMortality, loading: nurseryLoading } = useNursery();
+  const { logs: sprayLogs, loading: sprayLoading } = useSprayPrograms();
 
-  const loading = fieldsLoading || financesLoading || inventoryLoading || equipmentLoading || harvestLoading || treesLoading || pestLoading || orchardsLoading || nurseryLoading;
+  const loading = fieldsLoading || financesLoading || inventoryLoading || equipmentLoading || harvestLoading || treesLoading || pestLoading || orchardsLoading || nurseryLoading || sprayLoading;
 
   const recentHarvest = useMemo(() => harvest.slice(0, 3), [harvest]);
   const recentFinances = useMemo(() => finances.slice(0, 5), [finances]);
@@ -114,6 +116,28 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const totalDead = nurseryMortality.length;
   const mortalityRate = totalPlanted > 0 ? (totalDead / totalPlanted) * 100 : 0;
   const replacementCost = nurseryMortality.reduce((sum, record) => sum + (record.replacement_cost || 0), 0);
+
+  const totalSprayArea = sprayLogs.reduce((sum, log) => sum + (log.area_kanal || 0), 0);
+  const totalSprayProduct = sprayLogs.reduce((sum, log) => sum + (log.total_product || 0), 0);
+  const chemicalUsageIndex = totalSprayArea > 0 ? totalSprayProduct / totalSprayArea : totalSprayProduct;
+  const complianceWarnings = sprayLogs.filter(log => log.compliance_status === 'warning').length;
+
+  const fertilizerSpend = finances
+    .filter(entry => entry.entry_type === 'expense' && entry.category === 'fertilizer')
+    .reduce((sum, entry) => sum + (entry.amount || 0), 0);
+  const pesticideSpend = finances
+    .filter(entry => entry.entry_type === 'expense' && entry.category === 'pesticide')
+    .reduce((sum, entry) => sum + (entry.amount || 0), 0);
+  const equipmentSpend = finances
+    .filter(entry => entry.entry_type === 'expense' && entry.category === 'equipment')
+    .reduce((sum, entry) => sum + (entry.amount || 0), 0);
+
+  const carbonEstimateKg = (totalSprayProduct * 0.3) + ((fertilizerSpend + pesticideSpend + equipmentSpend) / 1000);
+  const clampScore = (value: number) => Math.max(0, Math.min(100, value));
+  const chemicalPenalty = Math.min(40, chemicalUsageIndex * 2);
+  const compliancePenalty = Math.min(20, complianceWarnings * 5);
+  const carbonPenalty = Math.min(30, carbonEstimateKg / 10);
+  const sustainabilityScore = clampScore(100 - chemicalPenalty - compliancePenalty - carbonPenalty);
 
   const todayLabel = new Date().toLocaleDateString('en-GB', {
     weekday: 'long',
@@ -344,6 +368,54 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </div>
           );
         })}
+      </div>
+
+      <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-emerald-700">Sustainability Snapshot</p>
+            <h3 className="mt-2 text-xl font-semibold text-gray-900">Environmental Footprint</h3>
+            <p className="text-sm text-gray-600 mt-1">Derived from spray usage and existing inputs.</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-gray-500">Score</p>
+            <p className="text-3xl font-bold text-emerald-700">{Math.round(sustainabilityScore)}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white border border-emerald-100 rounded-xl p-4">
+            <p className="text-xs text-gray-500">Chemical Usage Index</p>
+            <p className="text-lg font-semibold text-emerald-700">
+              {chemicalUsageIndex ? chemicalUsageIndex.toFixed(2) : '0.00'}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">Product per kanal</p>
+          </div>
+          <div className="bg-white border border-amber-100 rounded-xl p-4">
+            <p className="text-xs text-gray-500">Compliance Warnings</p>
+            <p className="text-lg font-semibold text-amber-700">{complianceWarnings}</p>
+            <p className="text-xs text-gray-500 mt-1">Dose checks</p>
+          </div>
+          <div className="bg-white border border-blue-100 rounded-xl p-4">
+            <p className="text-xs text-gray-500">Carbon Estimate</p>
+            <p className="text-lg font-semibold text-blue-700">
+              {carbonEstimateKg.toFixed(1)} kg CO2e
+            </p>
+            <p className="text-xs text-gray-500 mt-1">Proxy from inputs</p>
+          </div>
+          <div className="bg-white border border-slate-100 rounded-xl p-4">
+            <p className="text-xs text-gray-500">Spray Logs</p>
+            <p className="text-lg font-semibold text-slate-700">{sprayLogs.length}</p>
+            <p className="text-xs text-gray-500 mt-1">Recorded applications</p>
+          </div>
+        </div>
+
+        {complianceWarnings > 0 && (
+          <div className="mt-4 text-xs text-amber-700 flex items-center gap-2">
+            <AlertTriangle size={14} />
+            Review warning logs in Spray Programs for compliance details.
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
