@@ -418,6 +418,38 @@ export interface Database {
           id: string
           notes: string | null
           per_tree_budget: number | null
+      orchard_costs: {
+        Row: {
+          amount: number
+          cost_date: string
+          cost_type: string
+          created_at: string | null
+          id: string
+          notes: string | null
+          orchard_id: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          cost_date: string
+          cost_type: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          orchard_id: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          cost_date?: string
+          cost_type?: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          orchard_id?: string
+          user_id?: string | null
+        }
+      }
           season: string
           start_date: string
           status: string | null
@@ -977,6 +1009,7 @@ export interface Database {
           lug_count: number
           picker: string
           price_per_bin: number
+          price_unit: string | null
           quality_grade: string | null
           shelf_life_days: number | null
           storage_location: string | null
@@ -1004,6 +1037,7 @@ export interface Database {
           tree_id?: string | null
           user_id?: string | null
           variety: string
+            price_unit?: string | null
         }
         Update: {
           bin_count?: number
@@ -1023,6 +1057,7 @@ export interface Database {
           tree_id?: string | null
           user_id?: string | null
           variety?: string
+            price_unit?: string | null
         }
       }
       inventory: {

@@ -17,6 +17,7 @@ import {
   CalendarDays,
   Building2,
   ClipboardCheck,
+  TrendingUp,
   User,
   LogOut
 } from 'lucide-react';
@@ -35,6 +36,7 @@ export function Navigation({ currentView, onViewChange, isMobileMenuOpen, onTogg
     { id: 'dashboard' as ViewType, label: 'Dashboard', icon: BarChart3 },
     { id: 'fields' as ViewType, label: 'Fields & Trees', icon: Sprout },
     { id: 'nursery' as ViewType, label: 'Nursery', icon: TreePine },
+    { id: 'roi' as ViewType, label: 'Orchard ROI', icon: TrendingUp },
     { id: 'harvest' as ViewType, label: 'Harvest', icon: Apple },
     { id: 'pest' as ViewType, label: 'Pest Control', icon: Bug },
     { id: 'rotation' as ViewType, label: 'Rotation', icon: RotateCcw },

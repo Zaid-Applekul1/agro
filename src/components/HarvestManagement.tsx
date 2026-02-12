@@ -24,6 +24,7 @@ export function HarvestManagement() {
     binCount: '',
     qualityGrade: 'standard',
     pricePerBin: '',
+    priceUnit: 'per_container',
     harvestDate: '',
     storageLocation: '',
     shelfLifeDays: '',
@@ -36,6 +37,7 @@ export function HarvestManagement() {
   const [formBinCount, setFormBinCount] = useState('');
   const [formQualityGrade, setFormQualityGrade] = useState('standard');
   const [formPricePerBin, setFormPricePerBin] = useState('');
+  const [formPriceUnit, setFormPriceUnit] = useState<'per_container' | 'per_kg'>('per_container');
   const [formHarvestDate, setFormHarvestDate] = useState('');
   const [formStorageLocation, setFormStorageLocation] = useState('');
   const [formShelfLifeDays, setFormShelfLifeDays] = useState('');
@@ -46,13 +48,24 @@ export function HarvestManagement() {
   const [formSubmitting, setFormSubmitting] = useState(false);
 
   const containerTypes = [
-    { value: 'bin', label: 'Bin (standard)' },
-    { value: 'crate', label: 'Crate (kg)' }
+    { value: 'bin', label: 'Bin' },
+    { value: 'crate', label: 'Crate (17 kg)' },
+    { value: 'lug', label: 'Lug' },
+    { value: 'box', label: 'Box' },
+    { value: 'other', label: 'Other' }
   ];
 
   const containerCapacities = {
-    crate: ['15', '20', '25', '30'],
-    bin: ['10', '15', '20', '25', '30']
+    bin: ['10', '15', '20', '25', '30'],
+    crate: ['17'],
+    lug: ['5', '10', '12', '15'],
+    box: ['10', '15', '18', '20'],
+    other: [] as string[]
+  };
+
+  const getDefaultCapacity = (type: string) => {
+    const options = containerCapacities[type as keyof typeof containerCapacities] || [];
+    return options[0] || '';
   };
 
   useEffect(() => {
@@ -62,6 +75,7 @@ export function HarvestManagement() {
       binCount: selectedRecord.bin_count?.toString() || '',
       qualityGrade: selectedRecord.quality_grade || 'standard',
       pricePerBin: selectedRecord.price_per_bin?.toString() || '',
+      priceUnit: (selectedRecord as any).price_unit || 'per_container',
       harvestDate: selectedRecord.harvest_date || '',
       storageLocation: selectedRecord.storage_location || '',
       shelfLifeDays: selectedRecord.shelf_life_days?.toString() || '',
@@ -123,11 +137,12 @@ export function HarvestManagement() {
       binCount: record.bin_count?.toString() || '',
       qualityGrade: record.quality_grade || 'standard',
       pricePerBin: record.price_per_bin?.toString() || '',
+      priceUnit: (record as any).price_unit || 'per_container',
       harvestDate: record.harvest_date || '',
       storageLocation: record.storage_location || '',
       shelfLifeDays: record.shelf_life_days?.toString() || '',
       containerType: (record as any).container_type || 'bin',
-      containerCapacity: (record as any).container_capacity || '20',
+      containerCapacity: (record as any).container_capacity || getDefaultCapacity((record as any).container_type || 'bin'),
       transportVehicle: (record as any).transport_vehicle || '',
     });
     setShowUpdateForm(true);
@@ -140,11 +155,12 @@ export function HarvestManagement() {
     setFormBinCount('');
     setFormQualityGrade('standard');
     setFormPricePerBin('');
+    setFormPriceUnit('per_container');
     setFormHarvestDate('');
     setFormStorageLocation('Cold Storage A');
     setFormShelfLifeDays('');
     setFormContainerType('bin');
-    setFormContainerCapacity('20');
+    setFormContainerCapacity(getDefaultCapacity('bin'));
     setFormTransportVehicle('');
     setFormError(null);
     setShowAddForm(true);
@@ -155,8 +171,9 @@ export function HarvestManagement() {
       'AppleKul Farm - Harvest Label',
       `Variety: ${record.variety}`,
       `Picker: ${record.picker}`,
-      `Bins: ${record.bin_count}`,
+      `Containers: ${record.bin_count}`,
       `Harvest Date: ${new Date(record.harvest_date).toLocaleDateString()}`,
+      record.container_capacity ? `Est. Weight: ${(Number(record.container_capacity) * (record.bin_count || 0)).toFixed(1)} kg` : null,
       record.storage_location ? `Storage: ${record.storage_location}` : null,
     ].filter(Boolean).join('\n');
 
@@ -190,7 +207,7 @@ export function HarvestManagement() {
         <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-700 font-medium">Total Bins</p>
+              <p className="text-green-700 font-medium">Total Containers</p>
               <p className="text-2xl font-bold text-green-800">{totalBins}</p>
               <p className="text-xs text-green-600 mt-1">This season</p>
             </div>
@@ -311,15 +328,21 @@ export function HarvestManagement() {
 
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                  <p className="text-xs uppercase text-gray-500">Bins Harvested</p>
+                  <p className="text-xs uppercase text-gray-500">Containers Harvested</p>
                   <p className="text-xl font-bold text-gray-900">{record.bin_count}</p>
+                  {record.container_capacity && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {record.container_type || 'container'} · {record.container_capacity} kg
+                      {' · '}{(Number(record.container_capacity) * (record.bin_count || 0)).toFixed(1)} kg
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-xs uppercase text-gray-500">Revenue</p>
                   <p className="text-xl font-bold text-green-600">₹{record.total_revenue?.toLocaleString()}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase text-gray-500">Price per Bin</p>
+                  <p className="text-xs uppercase text-gray-500">Price per Container</p>
                   <p className="text-lg font-medium text-gray-900">₹{record.price_per_bin}</p>
                 </div>
                 <div>
@@ -449,7 +472,16 @@ export function HarvestManagement() {
                   const tree = trees.find(t => t.id === formTreeId);
                   const binCount = Number(formBinCount || 0);
                   const pricePerBin = Number(formPricePerBin || 0);
-                  const totalRevenue = binCount * pricePerBin;
+                  const capacityKg = Number(formContainerCapacity || 0);
+                  const totalKg = binCount * capacityKg;
+                  if (formPriceUnit === 'per_kg' && (!capacityKg || !binCount)) {
+                    setFormError('Enter container capacity to calculate kg-based revenue.');
+                    setFormSubmitting(false);
+                    return;
+                  }
+                  const totalRevenue = formPriceUnit === 'per_kg'
+                    ? totalKg * pricePerBin
+                    : binCount * pricePerBin;
 
                   setFormSubmitting(true);
                   const { error: submitError } = await addHarvestRecord({
@@ -459,6 +491,7 @@ export function HarvestManagement() {
                     bin_count: binCount,
                     quality_grade: formQualityGrade,
                     price_per_bin: pricePerBin,
+                    price_unit: formPriceUnit,
                     total_revenue: totalRevenue,
                     harvest_date: formHarvestDate,
                     storage_location: formStorageLocation || null,
@@ -509,7 +542,7 @@ export function HarvestManagement() {
                 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Bins Harvested</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Containers Harvested</label>
                     <input
                       type="number"
                       value={formBinCount}
@@ -536,13 +569,34 @@ export function HarvestManagement() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Price per Bin (₹)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price (₹)</label>
                     <input
                       type="number"
                       value={formPricePerBin}
                       onChange={event => setFormPricePerBin(event.target.value)}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
                     />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price Unit</label>
+                    <select
+                      value={formPriceUnit}
+                      onChange={event => setFormPriceUnit(event.target.value as 'per_container' | 'per_kg')}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
+                    >
+                      <option value="per_container">Per Container</option>
+                      <option value="per_kg">Per Kg</option>
+                    </select>
+                  </div>
+                  <div className="text-sm text-gray-600 flex items-end">
+                    {formPriceUnit === 'per_kg' && formBinCount && formContainerCapacity ? (
+                      <span>Est. total: {(Number(formBinCount) * Number(formContainerCapacity)).toFixed(1)} kg</span>
+                    ) : (
+                      <span>Price per container</span>
+                    )}
                   </div>
                 </div>
                 
@@ -594,8 +648,9 @@ export function HarvestManagement() {
                     <select
                       value={formContainerType}
                       onChange={event => {
-                        setFormContainerType(event.target.value);
-                        setFormContainerCapacity(event.target.value === 'crate' ? '20' : '20');
+                        const nextType = event.target.value;
+                        setFormContainerType(nextType);
+                        setFormContainerCapacity(getDefaultCapacity(nextType));
                       }}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
                     >
@@ -608,19 +663,37 @@ export function HarvestManagement() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {formContainerType === 'crate' ? 'Capacity (kg)' : 'Capacity'}
+                      Capacity (kg)
                     </label>
-                    <select
-                      value={formContainerCapacity}
-                      onChange={event => setFormContainerCapacity(event.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
-                    >
-                      {containerCapacities[formContainerType as keyof typeof containerCapacities].map(size => (
-                        <option key={size} value={size}>
-                          {size} {formContainerType === 'crate' ? 'kg' : ''}
-                        </option>
-                      ))}
-                    </select>
+                    {formContainerType === 'other' ? (
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={formContainerCapacity}
+                        onChange={event => setFormContainerCapacity(event.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="Enter kg per container"
+                      />
+                    ) : (
+                      <select
+                        value={formContainerCapacity}
+                        onChange={event => setFormContainerCapacity(event.target.value)}
+                        disabled={formContainerType === 'crate'}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500 disabled:bg-gray-100"
+                      >
+                        {containerCapacities[formContainerType as keyof typeof containerCapacities].map(size => (
+                          <option key={size} value={size}>
+                            {size} kg
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {formBinCount && formContainerCapacity && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Est. total: {(Number(formBinCount) * Number(formContainerCapacity)).toFixed(1)} kg
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Transport Vehicle</label>
@@ -682,12 +755,20 @@ export function HarvestManagement() {
                   event.preventDefault();
                   const binCount = Number(updateForm.binCount || 0);
                   const pricePerBin = Number(updateForm.pricePerBin || 0);
-                  const totalRevenue = binCount * pricePerBin;
+                  const capacityKg = Number(updateForm.containerCapacity || 0);
+                  const totalKg = binCount * capacityKg;
+                  if (updateForm.priceUnit === 'per_kg' && (!capacityKg || !binCount)) {
+                    return;
+                  }
+                  const totalRevenue = updateForm.priceUnit === 'per_kg'
+                    ? totalKg * pricePerBin
+                    : binCount * pricePerBin;
 
                   await updateHarvestRecord(selectedRecord.id, {
                     picker: updateForm.picker.trim(),
                     bin_count: binCount,
                     price_per_bin: pricePerBin,
+                    price_unit: updateForm.priceUnit,
                     total_revenue: totalRevenue,
                     quality_grade: updateForm.qualityGrade,
                     harvest_date: updateForm.harvestDate,
@@ -725,7 +806,7 @@ export function HarvestManagement() {
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Bins Harvested</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Containers Harvested</label>
                     <input
                       type="number"
                       value={updateForm.binCount}
@@ -735,7 +816,7 @@ export function HarvestManagement() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Price per Bin (₹)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price (₹)</label>
                     <input
                       type="number"
                       value={updateForm.pricePerBin}
@@ -757,6 +838,27 @@ export function HarvestManagement() {
                       <option value="processing">Processing</option>
                       <option value="reject">Reject</option>
                     </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price Unit</label>
+                    <select
+                      value={updateForm.priceUnit}
+                      onChange={event => setUpdateForm({ ...updateForm, priceUnit: event.target.value as 'per_container' | 'per_kg' })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
+                    >
+                      <option value="per_container">Per Container</option>
+                      <option value="per_kg">Per Kg</option>
+                    </select>
+                  </div>
+                  <div className="text-sm text-gray-600 flex items-end">
+                    {updateForm.priceUnit === 'per_kg' && updateForm.binCount && updateForm.containerCapacity ? (
+                      <span>Est. total: {(Number(updateForm.binCount) * Number(updateForm.containerCapacity)).toFixed(1)} kg</span>
+                    ) : (
+                      <span>Price per container</span>
+                    )}
                   </div>
                 </div>
 
@@ -796,7 +898,14 @@ export function HarvestManagement() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Container Type</label>
                     <select
                       value={updateForm.containerType}
-                      onChange={event => setUpdateForm({ ...updateForm, containerType: event.target.value })}
+                      onChange={event => {
+                        const nextType = event.target.value;
+                        setUpdateForm({
+                          ...updateForm,
+                          containerType: nextType,
+                          containerCapacity: getDefaultCapacity(nextType)
+                        });
+                      }}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
                     >
                       {containerTypes.map(ct => (
@@ -808,19 +917,37 @@ export function HarvestManagement() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {updateForm.containerType === 'crate' ? 'Capacity (kg)' : 'Capacity'}
+                      Capacity (kg)
                     </label>
-                    <select
-                      value={updateForm.containerCapacity}
-                      onChange={event => setUpdateForm({ ...updateForm, containerCapacity: event.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
-                    >
-                      {containerCapacities[updateForm.containerType as keyof typeof containerCapacities].map(size => (
-                        <option key={size} value={size}>
-                          {size} {updateForm.containerType === 'crate' ? 'kg' : ''}
-                        </option>
-                      ))}
-                    </select>
+                    {updateForm.containerType === 'other' ? (
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={updateForm.containerCapacity}
+                        onChange={event => setUpdateForm({ ...updateForm, containerCapacity: event.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="Enter kg per container"
+                      />
+                    ) : (
+                      <select
+                        value={updateForm.containerCapacity}
+                        onChange={event => setUpdateForm({ ...updateForm, containerCapacity: event.target.value })}
+                        disabled={updateForm.containerType === 'crate'}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500 disabled:bg-gray-100"
+                      >
+                        {containerCapacities[updateForm.containerType as keyof typeof containerCapacities].map(size => (
+                          <option key={size} value={size}>
+                            {size} kg
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {updateForm.binCount && updateForm.containerCapacity && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Est. total: {(Number(updateForm.binCount) * Number(updateForm.containerCapacity)).toFixed(1)} kg
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Transport Vehicle</label>

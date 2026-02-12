@@ -18,6 +18,7 @@ import { FarmCalendar } from './components/FarmCalendar';
 import { SupplierLedger } from './components/SupplierLedger';
 import { BudgetPlanner } from './components/BudgetPlanner';
 import { NurseryManagement } from './components/NurseryManagement';
+import { OrchardROI } from './components/OrchardROI';
 
 function App() {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
@@ -39,6 +40,7 @@ function App() {
       case 'suppliers': return <SupplierLedger />;
       case 'budgets': return <BudgetPlanner />;
       case 'nursery': return <NurseryManagement />;
+      case 'roi': return <OrchardROI />;
       case 'profile': return <ProfileSettings />;
       case 'users': return <UserManagement />;
       default: return <Dashboard onNavigate={setCurrentView} />;
