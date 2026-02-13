@@ -11,7 +11,6 @@ import { CropRotation } from './components/CropRotation';
 import { FinancialLedger } from './components/FinancialLedger';
 import { InventoryManagement } from './components/InventoryManagement';
 import { EquipmentRegistry } from './components/EquipmentRegistry';
-import { UserManagement } from './components/UserManagement';
 import { ActivityManagement } from './components/ActivityManagement';
 import { ProfileSettings } from './components/ProfileSettings';
 import { FarmCalendar } from './components/FarmCalendar';
@@ -46,7 +45,6 @@ function App() {
       case 'spray': return <SprayManagement />;
       case 'master-data': return <MasterDataManagement />;
       case 'profile': return <ProfileSettings />;
-      case 'users': return <UserManagement />;
       default: return <Dashboard onNavigate={setCurrentView} />;
     }
   };

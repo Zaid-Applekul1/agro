@@ -7,7 +7,6 @@ import {
   PoundSterling, 
   Package, 
   Wrench, 
-  Users,
   Menu,
   X,
   TreePine,
@@ -52,7 +51,6 @@ export function Navigation({ currentView, onViewChange, isMobileMenuOpen, onTogg
     { id: 'budgets' as ViewType, label: 'Budgets', icon: ClipboardCheck },
     { id: 'master-data' as ViewType, label: 'Master Data', icon: Database },
     { id: 'profile' as ViewType, label: 'Profile', icon: User },
-    { id: 'users' as ViewType, label: 'Users', icon: Users },
   ];
 
   const handleSignOut = async () => {
