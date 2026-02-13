@@ -1,0 +1,97 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Space+Grotesk:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+	--font-display: 'Fraunces', serif;
+	--font-body: 'Space Grotesk', sans-serif;
+	--brand-olive: #7f8f56;
+	--brand-forest: #1f5f3b;
+	--brand-mint: #ecfdf3;
+	--brand-amber: #f59e0b;
+	--brand-bg: #f7faf7;
+	--brand-card: rgba(255, 255, 255, 0.82);
+	--brand-stroke: rgba(31, 95, 59, 0.14);
+	--shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.06);
+	--shadow-hover: 0 16px 36px rgba(31, 95, 59, 0.14);
+}
+
+body {
+	font-family: var(--font-body);
+	color: #0f172a;
+	background: radial-gradient(circle at top left, #e9f8ef 0%, #f8fafc 42%, #fff6ea 100%);
+	background-attachment: fixed;
+}
+
+h1, h2, h3 {
+	font-family: var(--font-display);
+}
+
+#root {
+	min-height: 100vh;
+}
+
+@layer utilities {
+	.glass-panel {
+		background: var(--brand-card);
+		backdrop-filter: blur(10px);
+		border: 1px solid var(--brand-stroke);
+		box-shadow: var(--shadow-soft);
+	}
+
+	.soft-lift {
+		transition: transform 200ms ease, box-shadow 220ms ease, border-color 180ms ease;
+	}
+
+	.soft-lift:hover {
+		transform: translateY(-2px);
+		box-shadow: var(--shadow-hover);
+		border-color: rgba(31, 95, 59, 0.26);
+	}
+
+	.enter-fade-up {
+		animation: enter-fade-up 420ms ease both;
+	}
+
+	.stagger-1 { animation-delay: 50ms; }
+	.stagger-2 { animation-delay: 100ms; }
+	.stagger-3 { animation-delay: 150ms; }
+	.stagger-4 { animation-delay: 200ms; }
+}
+
+@keyframes enter-fade-up {
+	from {
+		opacity: 0;
+		transform: translateY(12px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation: none !important;
+		transition: none !important;
+		scroll-behavior: auto !important;
+	}
+}
+
+/* Orchard label styling */
+.orchard-label {
+	background: rgba(255, 255, 255, 0.95) !important;
+	border: 2px solid #16a34a !important;
+	border-radius: 8px !important;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+	padding: 8px 12px !important;
+	font-family: var(--font-body) !important;
+}
+
+.orchard-label::before {
+	display: none !important;
+}
