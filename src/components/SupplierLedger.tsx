@@ -1,7 +1,9 @@
 import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useSuppliers } from '../hooks/useSuppliers';
-import { Building2, FileText, Plus, Receipt, Wallet } from 'lucide-react';
+import { useMasterData } from '../hooks/useMasterData';
+import { useMasterSuggestions } from '../hooks/useMasterSuggestions';
+import { Building2, FileText, Plus, Receipt, Wallet, Lightbulb } from 'lucide-react';
 
 type LedgerEntry = {
   id: string;
@@ -39,17 +41,22 @@ export function SupplierLedger() {
     addPayment,
     uploadSupplierBill,
   } = useSuppliers();
+  const { suppliers: masterSuppliers } = useMasterData();
+  const { addSuggestion } = useMasterSuggestions();
 
   const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null);
   const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [showPurchaseForm, setShowPurchaseForm] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formSuggestError, setFormSuggestError] = useState<string | null>(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
   const [supplierForm, setSupplierForm] = useState({
     vendorCode: '',
     name: '',
+    nameOther: '',
+    showNameSuggestion: false,
     phone: '',
     email: '',
     address: '',
@@ -175,6 +182,8 @@ export function SupplierLedger() {
     setSupplierForm({
       vendorCode: '',
       name: '',
+      nameOther: '',
+      showNameSuggestion: false,
       phone: '',
       email: '',
       address: '',
@@ -183,6 +192,7 @@ export function SupplierLedger() {
       notes: '',
     });
     setFormError(null);
+    setFormSuggestError(null);
   };
 
   const resetPurchaseForm = () => {
@@ -217,7 +227,9 @@ export function SupplierLedger() {
     event.preventDefault();
     setFormError(null);
 
-    if (!supplierForm.vendorCode.trim() || !supplierForm.name.trim()) {
+    const nameToUse = supplierForm.name === 'other' ? supplierForm.nameOther : supplierForm.name;
+
+    if (!supplierForm.vendorCode.trim() || !nameToUse.trim()) {
       setFormError('Vendor code and supplier name are required.');
       return;
     }
@@ -225,7 +237,7 @@ export function SupplierLedger() {
     setFormSubmitting(true);
     const { error: submitError } = await addSupplier({
       vendor_code: supplierForm.vendorCode.trim(),
-      name: supplierForm.name.trim(),
+      name: nameToUse.trim(),
       phone: supplierForm.phone.trim() || null,
       email: supplierForm.email.trim() || null,
       address: supplierForm.address.trim() || null,
@@ -585,14 +597,74 @@ export function SupplierLedger() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Supplier Name</label>
-                    <input
-                      type="text"
-                      value={supplierForm.name}
-                      onChange={event => setSupplierForm({ ...supplierForm, name: event.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                      required
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Supplier Name *</label>
+                    <div className="flex gap-2">
+                      <select
+                        value={supplierForm.name}
+                        onChange={event => {
+                          setSupplierForm({ ...supplierForm, name: event.target.value, nameOther: '' });
+                        }}
+                        required
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                      >
+                        <option value="">Select supplier</option>
+                        {masterSuppliers.filter(s => s.is_active !== false).map(s => (
+                          <option key={s.id} value={s.name}>{s.name}</option>
+                        ))}
+                        <option value="other">+ Add new</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setSupplierForm({ ...supplierForm, showNameSuggestion: !supplierForm.showNameSuggestion })}
+                        className="text-green-600 hover:text-green-700"
+                        title="Suggest new supplier"
+                      >
+                        <Lightbulb size={20} />
+                      </button>
+                    </div>
+                    {supplierForm.name === 'other' && (
+                      <input
+                        type="text"
+                        placeholder="Enter new supplier name"
+                        value={supplierForm.nameOther}
+                        onChange={e => setSupplierForm({ ...supplierForm, nameOther: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-2"
+                      />
+                    )}
+                    {supplierForm.showNameSuggestion && (
+                      <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <p className="text-sm font-medium text-amber-900 mb-2">Suggest a new supplier</p>
+                        {formSuggestError && (
+                          <p className="text-xs text-red-600 mb-2">{formSuggestError}</p>
+                        )}
+                        <input
+                          type="text"
+                          placeholder="Supplier name (e.g., XYZ Chemicals)"
+                          value={supplierForm.nameOther}
+                          onChange={e => setSupplierForm({ ...supplierForm, nameOther: e.target.value })}
+                          className="w-full border border-amber-300 rounded px-2 py-1 mb-2 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!supplierForm.nameOther.trim()) {
+                              setFormSuggestError('Supplier name is required');
+                              return;
+                            }
+                            const { error } = await addSuggestion('supplier', supplierForm.nameOther.trim(), supplierForm.nameOther.trim());
+                            if (error) {
+                              setFormSuggestError(error);
+                            } else {
+                              setSupplierForm({ ...supplierForm, nameOther: '', showNameSuggestion: false });
+                              setFormSuggestError(null);
+                            }
+                          }}
+                          className="bg-amber-600 text-white px-2 py-1 rounded text-xs hover:bg-amber-700 w-full"
+                        >
+                          Submit Suggestion
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

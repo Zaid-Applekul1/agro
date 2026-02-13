@@ -5,8 +5,10 @@ import { useOrchards } from '../hooks/useOrchards';
 import { useFields } from '../hooks/useFields';
 import { useInventory } from '../hooks/useInventory';
 import { useFinances } from '../hooks/useFinances';
+import { useMasterData } from '../hooks/useMasterData';
+import { useMasterSuggestions } from '../hooks/useMasterSuggestions';
 import { appleVarieties } from '../data/mockData';
-import { Apple, Plus, TrendingUp, Package, Star, Thermometer, Calendar, MapPin, Sprout, Box, PoundSterling } from 'lucide-react';
+import { Apple, Plus, TrendingUp, Package, Star, Thermometer, Calendar, MapPin, Sprout, Box, PoundSterling, Lightbulb } from 'lucide-react';
 
 export function HarvestManagement() {
   const { harvest, loading: harvestLoading, error: harvestError, updateHarvestRecord, addHarvestRecord } = useHarvest();
@@ -15,6 +17,8 @@ export function HarvestManagement() {
   const { fields, loading: fieldsLoading } = useFields();
   const { inventory, loading: inventoryLoading } = useInventory();
   const { finances, loading: financesLoading } = useFinances();
+  const { varieties: masterVarieties } = useMasterData();
+  const { addSuggestion } = useMasterSuggestions();
   const [selectedVariety, setSelectedVariety] = useState<string>('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
@@ -33,6 +37,10 @@ export function HarvestManagement() {
     transportVehicle: '',
   });
   const [formTreeId, setFormTreeId] = useState('');
+  const [formVariety, setFormVariety] = useState('');
+  const [formVarietyOther, setFormVarietyOther] = useState('');
+  const [formShowVarietySuggestion, setFormShowVarietySuggestion] = useState(false);
+  const [formSuggestError, setFormSuggestError] = useState<string | null>(null);
   const [formPicker, setFormPicker] = useState('');
   const [formBinCount, setFormBinCount] = useState('');
   const [formQualityGrade, setFormQualityGrade] = useState('standard');
@@ -151,6 +159,9 @@ export function HarvestManagement() {
   const openAddForm = () => {
     const firstTree = trees[0];
     setFormTreeId(firstTree?.id || '');
+    setFormVariety('');
+    setFormVarietyOther('');
+    setFormShowVarietySuggestion(false);
     setFormPicker('');
     setFormBinCount('');
     setFormQualityGrade('standard');
@@ -163,6 +174,7 @@ export function HarvestManagement() {
     setFormContainerCapacity(getDefaultCapacity('bin'));
     setFormTransportVehicle('');
     setFormError(null);
+    setFormSuggestError(null);
     setShowAddForm(true);
   };
 
@@ -469,6 +481,12 @@ export function HarvestManagement() {
                     return;
                   }
 
+                  const varietyToUse = formVariety === 'other' ? formVarietyOther : formVariety;
+                  if (!varietyToUse) {
+                    setFormError('Please select or enter a variety.');
+                    return;
+                  }
+
                   const tree = trees.find(t => t.id === formTreeId);
                   const binCount = Number(formBinCount || 0);
                   const pricePerBin = Number(formPricePerBin || 0);
@@ -486,7 +504,7 @@ export function HarvestManagement() {
                   setFormSubmitting(true);
                   const { error: submitError } = await addHarvestRecord({
                     tree_id: formTreeId,
-                    variety: tree?.variety || 'Unknown',
+                    variety: varietyToUse,
                     picker: formPicker.trim(),
                     bin_count: binCount,
                     quality_grade: formQualityGrade,
@@ -529,15 +547,87 @@ export function HarvestManagement() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Picker Name</label>
-                    <input
-                      type="text"
-                      value={formPicker}
-                      onChange={event => setFormPicker(event.target.value)}
-                      required
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Apple Variety *</label>
+                    <div className="flex gap-2">
+                      <select
+                        value={formVariety}
+                        onChange={event => {
+                          setFormVariety(event.target.value);
+                          setFormVarietyOther('');
+                        }}
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
+                      >
+                        <option value="">Select variety</option>
+                        {masterVarieties.filter(v => v.is_active !== false).map(v => (
+                          <option key={v.id} value={v.name}>{v.name}</option>
+                        ))}
+                        <option value="other">+ Add new</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setFormShowVarietySuggestion(!formShowVarietySuggestion)}
+                        className="text-green-600 hover:text-green-700"
+                        title="Suggest new variety"
+                      >
+                        <Lightbulb size={20} />
+                      </button>
+                    </div>
+                    {formVariety === 'other' && (
+                      <input
+                        type="text"
+                        placeholder="Enter new variety name"
+                        value={formVarietyOther}
+                        onChange={event => setFormVarietyOther(event.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                    )}
+                    {formShowVarietySuggestion && (
+                      <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <p className="text-sm font-medium text-amber-900 mb-2">Suggest a new variety</p>
+                        {formSuggestError && (
+                          <p className="text-xs text-red-600 mb-2">{formSuggestError}</p>
+                        )}
+                        <input
+                          type="text"
+                          placeholder="Variety name (e.g., Honeycrisp)"
+                          value={formVarietyOther}
+                          onChange={event => setFormVarietyOther(event.target.value)}
+                          className="w-full border border-amber-300 rounded px-2 py-1 mb-2 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!formVarietyOther.trim()) {
+                              setFormSuggestError('Variety name is required');
+                              return;
+                            }
+                            const { error } = await addSuggestion('variety', formVarietyOther.trim(), formVarietyOther.trim());
+                            if (error) {
+                              setFormSuggestError(error);
+                            } else {
+                              setFormVarietyOther('');
+                              setFormShowVarietySuggestion(false);
+                              setFormSuggestError(null);
+                            }
+                          }}
+                          className="bg-amber-600 text-white px-2 py-1 rounded text-xs hover:bg-amber-700"
+                        >
+                          Submit Suggestion
+                        </button>
+                      </div>
+                    )}
                   </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Picker Name</label>
+                  <input
+                    type="text"
+                    value={formPicker}
+                    onChange={event => setFormPicker(event.target.value)}
+                    required
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
+                  />
                 </div>
                 
                 <div className="grid grid-cols-3 gap-4">

@@ -3,6 +3,9 @@ import { useNursery } from '../hooks/useNursery';
 import { useFields } from '../hooks/useFields';
 import { useTrees } from '../hooks/useTrees';
 import { useFinances } from '../hooks/useFinances';
+import { useMasterData } from '../hooks/useMasterData';
+import { useMasterSuggestions } from '../hooks/useMasterSuggestions';
+import { OrchardEstablishment } from './OrchardEstablishment';
 import {
   Sprout,
   Plus,
@@ -17,6 +20,7 @@ import {
   XCircle,
   MoreVertical,
   X,
+  Lightbulb,
 } from 'lucide-react';
 
 export function NurseryManagement() {
@@ -24,11 +28,14 @@ export function NurseryManagement() {
   const { fields } = useFields();
   const { trees } = useTrees();
   const { addEntry: addFinanceEntry } = useFinances();
+  const { varieties: masterVarieties } = useMasterData();
+  const { addSuggestion } = useMasterSuggestions();
 
   const [activeTab, setActiveTab] = useState<'suppliers' | 'batches' | 'mortality'>('batches');
   const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [showBatchForm, setShowBatchForm] = useState(false);
   const [showMortalityForm, setShowMortalityForm] = useState(false);
+  const [showEstablishment, setShowEstablishment] = useState(false);
   const [openBatchMenuId, setOpenBatchMenuId] = useState<string | null>(null);
   const [openMortalityMenuId, setOpenMortalityMenuId] = useState<string | null>(null);
 
@@ -57,6 +64,8 @@ export function NurseryManagement() {
     treeBlockId: '',
     batchNumber: '',
     variety: '',
+    varietyOther: '',
+    showVarietySuggestion: false,
     rootstockType: '',
     graftMethod: '',
     quantity: '',
@@ -76,6 +85,8 @@ export function NurseryManagement() {
     nurseryBatchId: '',
     treeIdentifier: '',
     variety: '',
+    varietyOther: '',
+    showVarietySuggestion: false,
     causeOfDeath: 'disease' as const,
     deathDate: '',
     treeAgeMonths: '',
@@ -87,6 +98,7 @@ export function NurseryManagement() {
   });
 
   const [formError, setFormError] = useState<string | null>(null);
+  const [formSuggestError, setFormSuggestError] = useState<string | null>(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
   // Calculate statistics
@@ -199,7 +211,10 @@ export function NurseryManagement() {
 
   const handleBatchSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!batchForm.batchNumber.trim() || !batchForm.variety.trim() || !batchForm.rootstockType.trim()) {
+    
+    const varietyToUse = batchForm.variety === 'other' ? batchForm.varietyOther : batchForm.variety;
+    
+    if (!batchForm.batchNumber.trim() || !varietyToUse || !batchForm.rootstockType.trim()) {
       setFormError('Batch number, variety, and rootstock type are required');
       return;
     }
@@ -229,7 +244,7 @@ export function NurseryManagement() {
         field_id: batchForm.fieldId || null,
         tree_block_id: batchForm.treeBlockId || null,
         batch_number: batchForm.batchNumber.trim(),
-        variety: batchForm.variety.trim(),
+        variety: varietyToUse,
         rootstock_type: batchForm.rootstockType.trim(),
         graft_method: batchForm.graftMethod.trim() || null,
         quantity,
@@ -257,7 +272,7 @@ export function NurseryManagement() {
           type: 'expense',
           category: 'inputs',
           amount: totalCost,
-          description: `Nursery batch ${batchForm.batchNumber} - ${quantity} ${batchForm.variety} plants`,
+          description: `Nursery batch ${batchForm.batchNumber} - ${quantity} ${varietyToUse} plants`,
           date: batchForm.purchaseDate,
           field_id: batchForm.fieldId || null,
           notes: `Supplier: ${suppliers.find(s => s.id === batchForm.supplierId)?.name || 'N/A'}, Rootstock: ${batchForm.rootstockType}`,
@@ -272,6 +287,8 @@ export function NurseryManagement() {
         treeBlockId: '',
         batchNumber: '',
         variety: '',
+        varietyOther: '',
+        showVarietySuggestion: false,
         rootstockType: '',
         graftMethod: '',
         quantity: '',
@@ -516,6 +533,26 @@ export function NurseryManagement() {
           <p className="text-2xl font-bold text-orange-900 mt-2">₹{replacementCost.toLocaleString()}</p>
           <p className="text-xs text-orange-700 font-medium">Replacement Cost</p>
         </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Orchard Establishment</h3>
+            <p className="text-sm text-gray-600">Planning, costs, mortality, and yield forecasting for new blocks</p>
+          </div>
+          <button
+            onClick={() => setShowEstablishment(!showEstablishment)}
+            className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            {showEstablishment ? 'Hide Planner' : 'Show Planner'}
+          </button>
+        </div>
+        {showEstablishment && (
+          <div className="mt-4">
+            <OrchardEstablishment />
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -1125,14 +1162,73 @@ export function NurseryManagement() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Variety *
                   </label>
-                  <input
-                    type="text"
-                    value={batchForm.variety}
-                    onChange={e => setBatchForm({ ...batchForm, variety: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                    placeholder="e.g., Gala, Fuji"
-                    required
-                  />
+                  <div className="flex gap-2">
+                    <select
+                      value={batchForm.variety}
+                      onChange={e => {
+                        setBatchForm({ ...batchForm, variety: e.target.value, varietyOther: '' });
+                      }}
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                      required
+                    >
+                      <option value="">Select variety</option>
+                      {masterVarieties.filter(v => v.is_active !== false).map(v => (
+                        <option key={v.id} value={v.name}>{v.name}</option>
+                      ))}
+                      <option value="other">+ Add new</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setBatchForm({ ...batchForm, showVarietySuggestion: !batchForm.showVarietySuggestion })}
+                      className="text-green-600 hover:text-green-700"
+                      title="Suggest new variety"
+                    >
+                      <Lightbulb size={20} />
+                    </button>
+                  </div>
+                  {batchForm.variety === 'other' && (
+                    <input
+                      type="text"
+                      placeholder="Enter new variety name"
+                      value={batchForm.varietyOther}
+                      onChange={e => setBatchForm({ ...batchForm, varietyOther: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-2"
+                    />
+                  )}
+                  {batchForm.showVarietySuggestion && (
+                    <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm font-medium text-amber-900 mb-2">Suggest a new variety</p>
+                      {formSuggestError && (
+                        <p className="text-xs text-red-600 mb-2">{formSuggestError}</p>
+                      )}
+                      <input
+                        type="text"
+                        placeholder="Variety name (e.g., Honeycrisp)"
+                        value={batchForm.varietyOther}
+                        onChange={e => setBatchForm({ ...batchForm, varietyOther: e.target.value })}
+                        className="w-full border border-amber-300 rounded px-2 py-1 mb-2 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!batchForm.varietyOther.trim()) {
+                            setFormSuggestError('Variety name is required');
+                            return;
+                          }
+                          const { error } = await addSuggestion('variety', batchForm.varietyOther.trim(), batchForm.varietyOther.trim());
+                          if (error) {
+                            setFormSuggestError(error);
+                          } else {
+                            setBatchForm({ ...batchForm, varietyOther: '', showVarietySuggestion: false });
+                            setFormSuggestError(null);
+                          }
+                        }}
+                        className="bg-amber-600 text-white px-2 py-1 rounded text-xs hover:bg-amber-700"
+                      >
+                        Submit Suggestion
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div>

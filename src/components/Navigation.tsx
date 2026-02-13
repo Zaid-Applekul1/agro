@@ -20,7 +20,8 @@ import {
   ClipboardCheck,
   TrendingUp,
   User,
-  LogOut
+  LogOut,
+  Database
 } from 'lucide-react';
 
 interface NavigationProps {
@@ -49,6 +50,7 @@ export function Navigation({ currentView, onViewChange, isMobileMenuOpen, onTogg
     { id: 'calendar' as ViewType, label: 'Calendar', icon: CalendarDays },
     { id: 'suppliers' as ViewType, label: 'Suppliers', icon: Building2 },
     { id: 'budgets' as ViewType, label: 'Budgets', icon: ClipboardCheck },
+    { id: 'master-data' as ViewType, label: 'Master Data', icon: Database },
     { id: 'profile' as ViewType, label: 'Profile', icon: User },
     { id: 'users' as ViewType, label: 'Users', icon: Users },
   ];

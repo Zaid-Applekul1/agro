@@ -126,4 +126,4 @@ export interface AppleVarietyInfo {
   marketDemand: 'high' | 'medium' | 'low';
 }
 
-export type ViewType = 'dashboard' | 'fields' | 'trees' | 'nursery' | 'roi' | 'spray' | 'harvest' | 'pest' | 'rotation' | 'finances' | 'inventory' | 'equipment' | 'users' | 'activity' | 'profile' | 'calendar' | 'suppliers' | 'budgets';
+export type ViewType = 'dashboard' | 'fields' | 'trees' | 'nursery' | 'roi' | 'spray' | 'harvest' | 'pest' | 'rotation' | 'finances' | 'inventory' | 'equipment' | 'users' | 'activity' | 'profile' | 'calendar' | 'suppliers' | 'budgets' | 'master-data';

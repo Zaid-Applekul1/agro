@@ -3,7 +3,9 @@ import { useFields } from '../hooks/useFields';
 import { useTrees } from '../hooks/useTrees';
 import { useOrchards } from '../hooks/useOrchards';
 import { useSprayPrograms } from '../hooks/useSprayPrograms';
-import { Droplets, Plus, AlertTriangle, Calendar, ShieldCheck } from 'lucide-react';
+import { useMasterData } from '../hooks/useMasterData';
+import { useMasterSuggestions } from '../hooks/useMasterSuggestions';
+import { Droplets, Plus, AlertTriangle, Calendar, ShieldCheck, Lightbulb } from 'lucide-react';
 
 const recommendedChemicals = [
   {
@@ -72,16 +74,21 @@ export function SprayManagement() {
     addProgramItem,
     addLog
   } = useSprayPrograms();
+  const { chemicals: masterChemicals } = useMasterData();
+  const { addSuggestion } = useMasterSuggestions();
 
   const [activeTab, setActiveTab] = useState<'chemicals' | 'programs' | 'logs'>('logs');
   const [showChemicalForm, setShowChemicalForm] = useState(false);
   const [showProgramForm, setShowProgramForm] = useState(false);
   const [showLogForm, setShowLogForm] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formSuggestError, setFormSuggestError] = useState<string | null>(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
   const [chemicalForm, setChemicalForm] = useState({
     name: '',
+    nameOther: '',
+    showNameSuggestion: false,
     activeIngredient: '',
     targetPest: '',
     crop: 'Apple',
@@ -202,7 +209,10 @@ export function SprayManagement() {
 
   const handleChemicalSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!chemicalForm.name.trim()) {
+    
+    const nameToUse = chemicalForm.name === 'other' ? chemicalForm.nameOther : chemicalForm.name;
+    
+    if (!nameToUse.trim()) {
       setFormError('Chemical name is required.');
       return;
     }
@@ -210,7 +220,7 @@ export function SprayManagement() {
     setFormSubmitting(true);
     setFormError(null);
     const result = await addChemical({
-      name: chemicalForm.name.trim(),
+      name: nameToUse.trim(),
       active_ingredient: chemicalForm.activeIngredient.trim() || null,
       target_pest: chemicalForm.targetPest.trim() || null,
       crop: chemicalForm.crop.trim() || null,
@@ -228,6 +238,8 @@ export function SprayManagement() {
     }
     setChemicalForm({
       name: '',
+      nameOther: '',
+      showNameSuggestion: false,
       activeIngredient: '',
       targetPest: '',
       crop: 'Apple',
@@ -636,13 +648,72 @@ export function SprayManagement() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                  <input
-                    type="text"
-                    value={chemicalForm.name}
-                    onChange={event => setChemicalForm({ ...chemicalForm, name: event.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                    required
-                  />
+                  <div className="flex gap-2">
+                    <select
+                      value={chemicalForm.name}
+                      onChange={event => {
+                        setChemicalForm({ ...chemicalForm, name: event.target.value, nameOther: '' });
+                      }}
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                    >
+                      <option value="">Select chemical</option>
+                      {masterChemicals.filter(c => c.is_active !== false).map(c => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                      ))}
+                      <option value="other">+ Add new</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setChemicalForm({ ...chemicalForm, showNameSuggestion: !chemicalForm.showNameSuggestion })}
+                      className="text-blue-600 hover:text-blue-700"
+                      title="Suggest new chemical"
+                    >
+                      <Lightbulb size={20} />
+                    </button>
+                  </div>
+                  {chemicalForm.name === 'other' && (
+                    <input
+                      type="text"
+                      placeholder="Enter new chemical name"
+                      value={chemicalForm.nameOther}
+                      onChange={e => setChemicalForm({ ...chemicalForm, nameOther: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-2"
+                    />
+                  )}
+                  {chemicalForm.showNameSuggestion && (
+                    <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm font-medium text-amber-900 mb-2">Suggest a new chemical</p>
+                      {formSuggestError && (
+                        <p className="text-xs text-red-600 mb-2">{formSuggestError}</p>
+                      )}
+                      <input
+                        type="text"
+                        placeholder="Chemical name (e.g., Azoxystrobin)"
+                        value={chemicalForm.nameOther}
+                        onChange={e => setChemicalForm({ ...chemicalForm, nameOther: e.target.value })}
+                        className="w-full border border-amber-300 rounded px-2 py-1 mb-2 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!chemicalForm.nameOther.trim()) {
+                            setFormSuggestError('Chemical name is required');
+                            return;
+                          }
+                          const { error } = await addSuggestion('chemical', chemicalForm.nameOther.trim(), chemicalForm.nameOther.trim());
+                          if (error) {
+                            setFormSuggestError(error);
+                          } else {
+                            setChemicalForm({ ...chemicalForm, nameOther: '', showNameSuggestion: false });
+                            setFormSuggestError(null);
+                          }
+                        }}
+                        className="bg-amber-600 text-white px-2 py-1 rounded text-xs hover:bg-amber-700"
+                      >
+                        Submit Suggestion
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Active Ingredient</label>

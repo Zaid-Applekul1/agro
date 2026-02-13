@@ -3,14 +3,19 @@ import { useInventory } from '../hooks/useInventory';
 import { usePestTreatments } from '../hooks/usePestTreatments';
 import { useHarvest } from '../hooks/useHarvest';
 import { useFinances } from '../hooks/useFinances';
+import { useMasterData } from '../hooks/useMasterData';
+import { useMasterSuggestions } from '../hooks/useMasterSuggestions';
 import { StorageTracking } from './StorageTracking';
-import { Package, AlertTriangle, Plus, Search, Bug, Apple, PoundSterling } from 'lucide-react';
+import { Package, AlertTriangle, Plus, Search, Bug, Apple, PoundSterling, Lightbulb } from 'lucide-react';
 
 export function InventoryManagement() {
   const { inventory, loading, error, addInventoryItem } = useInventory();
   const { pestTreatments, loading: pestLoading } = usePestTreatments();
   const { harvest, loading: harvestLoading } = useHarvest();
   const { finances, loading: finLoading } = useFinances();
+  const { units: masterUnits, suppliers: masterSuppliers } = useMasterData();
+  const { addSuggestion } = useMasterSuggestions();
+  
   const [activeTab, setActiveTab] = useState<'materials' | 'storage'>('materials');
   const [selectedType, setSelectedType] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -18,11 +23,16 @@ export function InventoryManagement() {
   const [formName, setFormName] = useState('');
   const [formType, setFormType] = useState('fertilizer');
   const [formQuantity, setFormQuantity] = useState('');
-  const [formUnit, setFormUnit] = useState('kg');
+  const [formUnit, setFormUnit] = useState('');
+  const [formUnitOther, setFormUnitOther] = useState('');
+  const [formShowUnitSuggestion, setFormShowUnitSuggestion] = useState(false);
   const [formPrice, setFormPrice] = useState('');
   const [formSupplier, setFormSupplier] = useState('');
+  const [formSupplierOther, setFormSupplierOther] = useState('');
+  const [formShowSupplierSuggestion, setFormShowSupplierSuggestion] = useState(false);
   const [formExpiry, setFormExpiry] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [formSuggestError, setFormSuggestError] = useState<string | null>(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
   if (loading) {
@@ -306,7 +316,10 @@ export function InventoryManagement() {
                   event.preventDefault();
                   setFormError(null);
 
-                  if (!formName.trim() || !formQuantity || !formPrice || !formSupplier.trim()) {
+                  const supplierToUse = formSupplier === 'other' ? formSupplierOther : formSupplier;
+                  const unitToUse = formUnit === 'other' ? formUnitOther : formUnit;
+
+                  if (!formName.trim() || !formQuantity || !formPrice || !supplierToUse.trim()) {
                     setFormError('Please fill in all required fields.');
                     return;
                   }
@@ -316,9 +329,9 @@ export function InventoryManagement() {
                     name: formName.trim(),
                     item_type: formType,
                     quantity: Number(formQuantity),
-                    unit: formUnit.trim(),
+                    unit: unitToUse.trim(),
                     price_per_unit: Number(formPrice),
-                    supplier: formSupplier.trim(),
+                    supplier: supplierToUse.trim(),
                     expiry_date: formExpiry || null,
                   });
                   setFormSubmitting(false);
@@ -331,9 +344,13 @@ export function InventoryManagement() {
                   setFormName('');
                   setFormType('fertilizer');
                   setFormQuantity('');
-                  setFormUnit('kg');
+                  setFormUnit('');
+                  setFormUnitOther('');
+                  setFormShowUnitSuggestion(false);
                   setFormPrice('');
                   setFormSupplier('');
+                  setFormSupplierOther('');
+                  setFormShowSupplierSuggestion(false);
                   setFormExpiry('');
                   setShowAddForm(false);
                 }}
@@ -368,14 +385,73 @@ export function InventoryManagement() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                    <input
-                      type="text"
-                      value={formUnit}
-                      onChange={event => setFormUnit(event.target.value)}
-                      required
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
+                    <div className="flex gap-2">
+                      <select
+                        value={formUnit}
+                        onChange={event => {
+                          setFormUnit(event.target.value);
+                          setFormUnitOther('');
+                        }}
+                        required
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
+                      >
+                        <option value="">Select unit</option>
+                        {masterUnits.filter(u => u.is_active !== false).map(u => (
+                          <option key={u.id} value={u.symbol || u.name}>{u.name} ({u.symbol})</option>
+                        ))}
+                        <option value="other">+ Add new</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setFormShowUnitSuggestion(!formShowUnitSuggestion)}
+                        className="text-green-600 hover:text-green-700"
+                        title="Suggest new unit"
+                      >
+                        <Lightbulb size={20} />
+                      </button>
+                    </div>
+                    {formUnit === 'other' && (
+                      <input
+                        type="text"
+                        placeholder="Enter new unit"
+                        value={formUnitOther}
+                        onChange={e => setFormUnitOther(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                    )}
+                    {formShowUnitSuggestion && (
+                      <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs">
+                        {formSuggestError && <p className="text-red-600 mb-1">{formSuggestError}</p>}
+                        <input
+                          type="text"
+                          placeholder="Unit (e.g., liter)"
+                          value={formUnitOther}
+                          onChange={e => setFormUnitOther(e.target.value)}
+                          className="w-full border border-amber-300 rounded px-2 py-1 mb-1"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!formUnitOther.trim()) {
+                              setFormSuggestError('Unit is required');
+                              return;
+                            }
+                            const { error } = await addSuggestion('unit', formUnitOther.trim(), formUnitOther.trim());
+                            if (error) {
+                              setFormSuggestError(error);
+                            } else {
+                              setFormUnitOther('');
+                              setFormShowUnitSuggestion(false);
+                              setFormSuggestError(null);
+                            }
+                          }}
+                          className="bg-amber-600 text-white px-2 py-1 rounded hover:bg-amber-700 w-full"
+                        >
+                          Suggest
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -403,14 +479,73 @@ export function InventoryManagement() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
-                  <input
-                    type="text"
-                    value={formSupplier}
-                    onChange={event => setFormSupplier(event.target.value)}
-                    required
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Supplier *</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={formSupplier}
+                      onChange={event => {
+                        setFormSupplier(event.target.value);
+                        setFormSupplierOther('');
+                      }}
+                      required
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-green-500 focus:border-green-500"
+                    >
+                      <option value="">Select supplier</option>
+                      {masterSuppliers.filter(s => s.is_active !== false).map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ))}
+                      <option value="other">+ Add new</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setFormShowSupplierSuggestion(!formShowSupplierSuggestion)}
+                      className="text-green-600 hover:text-green-700"
+                      title="Suggest new supplier"
+                    >
+                      <Lightbulb size={20} />
+                    </button>
+                  </div>
+                  {formSupplier === 'other' && (
+                    <input
+                      type="text"
+                      placeholder="Enter new supplier name"
+                      value={formSupplierOther}
+                      onChange={e => setFormSupplierOther(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-2 focus:ring-green-500 focus:border-green-500"
+                    />
+                  )}
+                  {formShowSupplierSuggestion && (
+                    <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs">
+                      {formSuggestError && <p className="text-red-600 mb-1">{formSuggestError}</p>}
+                      <input
+                        type="text"
+                        placeholder="Supplier name (e.g., ABC Imports)"
+                        value={formSupplierOther}
+                        onChange={e => setFormSupplierOther(e.target.value)}
+                        className="w-full border border-amber-300 rounded px-2 py-1 mb-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!formSupplierOther.trim()) {
+                            setFormSuggestError('Supplier name is required');
+                            return;
+                          }
+                          const { error } = await addSuggestion('supplier', formSupplierOther.trim(), formSupplierOther.trim());
+                          if (error) {
+                            setFormSuggestError(error);
+                          } else {
+                            setFormSupplierOther('');
+                            setFormShowSupplierSuggestion(false);
+                            setFormSuggestError(null);
+                          }
+                        }}
+                        className="bg-amber-600 text-white px-2 py-1 rounded hover:bg-amber-700 w-full"
+                      >
+                        Suggest
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div>

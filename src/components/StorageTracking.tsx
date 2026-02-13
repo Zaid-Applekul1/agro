@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useStorage } from '../hooks/useStorage';
-import { AlertTriangle, ClipboardList, Droplets, Plus, Thermometer, Truck } from 'lucide-react';
+import { useHarvest } from '../hooks/useHarvest';
+import { useTrees } from '../hooks/useTrees';
+import { useFields } from '../hooks/useFields';
+import { useSprayPrograms } from '../hooks/useSprayPrograms';
+import { AlertTriangle, ClipboardList, Droplets, Link2, Plus, Send, Thermometer, Truck } from 'lucide-react';
 
 const containerOptions = [
   { value: 'crate', label: 'Crate' },
@@ -17,6 +21,8 @@ export function StorageTracking() {
     movements,
     conditions,
     damageLogs,
+    lotLinks,
+    dispatches,
     loading,
     error,
     addLocation,
@@ -24,7 +30,13 @@ export function StorageTracking() {
     addMovement,
     addCondition,
     addDamage,
+    addLotLink,
+    addDispatch,
   } = useStorage();
+  const { harvest } = useHarvest();
+  const { trees } = useTrees();
+  const { fields } = useFields();
+  const { logs: sprayLogs } = useSprayPrograms();
 
   const [activeType, setActiveType] = useState<'warehouse' | 'ca'>('warehouse');
   const [expandedLotId, setExpandedLotId] = useState<string | null>(null);
@@ -34,6 +46,8 @@ export function StorageTracking() {
   const [showMovementForm, setShowMovementForm] = useState(false);
   const [showConditionForm, setShowConditionForm] = useState(false);
   const [showDamageForm, setShowDamageForm] = useState(false);
+  const [showLinkForm, setShowLinkForm] = useState(false);
+  const [showDispatchForm, setShowDispatchForm] = useState(false);
 
   const [locationName, setLocationName] = useState('');
   const [locationCapacity, setLocationCapacity] = useState('');
@@ -69,6 +83,20 @@ export function StorageTracking() {
   const [damageUnits, setDamageUnits] = useState('');
   const [shrinkageUnits, setShrinkageUnits] = useState('');
   const [damageReason, setDamageReason] = useState('');
+
+  const [linkLotId, setLinkLotId] = useState('');
+  const [linkHarvestId, setLinkHarvestId] = useState('');
+  const [linkContainerType, setLinkContainerType] = useState('');
+  const [linkContainerCapacity, setLinkContainerCapacity] = useState('');
+  const [linkContainerCount, setLinkContainerCount] = useState('');
+
+  const [dispatchLotId, setDispatchLotId] = useState('');
+  const [dispatchDate, setDispatchDate] = useState('');
+  const [dispatchUnits, setDispatchUnits] = useState('');
+  const [dispatchDestination, setDispatchDestination] = useState('');
+  const [dispatchVehicle, setDispatchVehicle] = useState('');
+  const [dispatchReference, setDispatchReference] = useState('');
+  const [dispatchNotes, setDispatchNotes] = useState('');
 
   const [formError, setFormError] = useState<string | null>(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
@@ -106,6 +134,56 @@ export function StorageTracking() {
     }, {});
   }, [damageLogs]);
 
+  const lotLinksByLot = useMemo(() => {
+    return lotLinks.reduce<Record<string, typeof lotLinks>>((acc, link) => {
+      acc[link.lot_id] = acc[link.lot_id] || [];
+      acc[link.lot_id].push(link);
+      return acc;
+    }, {});
+  }, [lotLinks]);
+
+  const dispatchByLot = useMemo(() => {
+    return dispatches.reduce<Record<string, typeof dispatches>>((acc, record) => {
+      acc[record.lot_id] = acc[record.lot_id] || [];
+      acc[record.lot_id].push(record);
+      return acc;
+    }, {});
+  }, [dispatches]);
+
+  const treeById = useMemo(() => {
+    return trees.reduce<Record<string, typeof trees[number]>>((acc, tree) => {
+      acc[tree.id] = tree;
+      return acc;
+    }, {});
+  }, [trees]);
+
+  const fieldById = useMemo(() => {
+    return fields.reduce<Record<string, typeof fields[number]>>((acc, field) => {
+      acc[field.id] = field;
+      return acc;
+    }, {});
+  }, [fields]);
+
+  const harvestById = useMemo(() => {
+    return harvest.reduce<Record<string, typeof harvest[number]>>((acc, record) => {
+      acc[record.id] = record;
+      return acc;
+    }, {});
+  }, [harvest]);
+
+  const sprayByField = useMemo(() => {
+    const grouped = sprayLogs.reduce<Record<string, typeof sprayLogs>>((acc, log) => {
+      if (!log.field_id) return acc;
+      acc[log.field_id] = acc[log.field_id] || [];
+      acc[log.field_id].push(log);
+      return acc;
+    }, {});
+    Object.keys(grouped).forEach(fieldId => {
+      grouped[fieldId].sort((a, b) => new Date(b.applied_at).getTime() - new Date(a.applied_at).getTime());
+    });
+    return grouped;
+  }, [sprayLogs]);
+
   const getLotBalance = (lotId: string, baseUnits: number | null) => {
     const base = baseUnits || 0;
     const moves = lotMovements[lotId] || [];
@@ -130,6 +208,16 @@ export function StorageTracking() {
   }, 0);
 
   const resetErrors = () => setFormError(null);
+
+  const generateLotId = () => {
+    const location = filteredLocations.find(loc => loc.id === lotLocationId);
+    const locationCode = location?.name
+      ? location.name.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase()
+      : 'LOT';
+    const datePart = (lotStorageDate || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+    const randomPart = Math.floor(100 + Math.random() * 900).toString();
+    setLotBatchCode(`LOT-${datePart}-${locationCode}-${randomPart}`);
+  };
 
   const handleAddLocation = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -170,7 +258,7 @@ export function StorageTracking() {
     }
 
     setFormSubmitting(true);
-    const { error: submitError } = await addLot({
+    const { data: lotData, error: submitError } = await addLot({
       location_id: lotLocationId,
       batch_code: lotBatchCode.trim(),
       category: lotCategory,
@@ -189,6 +277,17 @@ export function StorageTracking() {
     if (submitError) {
       setFormError(submitError);
       return;
+    }
+
+    if (lotData?.id && lotUnitCount) {
+      await addMovement({
+        lot_id: lotData.id,
+        movement_type: 'in',
+        quantity_units: Number(lotUnitCount),
+        moved_at: lotStorageDate || null,
+        reference: 'Initial storage',
+        notes: null,
+      });
     }
 
     setLotLocationId('');
@@ -303,6 +402,92 @@ export function StorageTracking() {
     setShowDamageForm(false);
   };
 
+  const handleAddLotLink = async (event: React.FormEvent) => {
+    event.preventDefault();
+    resetErrors();
+
+    if (!linkLotId || !linkHarvestId) {
+      setFormError('Lot and harvest record are required.');
+      return;
+    }
+
+    const count = Number(linkContainerCount || 0);
+    const capacity = Number(linkContainerCapacity || 0);
+    const fallbackCapacity = linkContainerType === 'crate' && !capacity ? 17 : capacity;
+    const weightKg = fallbackCapacity * count;
+
+    setFormSubmitting(true);
+    const { error: submitError } = await addLotLink({
+      lot_id: linkLotId,
+      harvest_id: linkHarvestId,
+      container_type: linkContainerType || null,
+      container_capacity: linkContainerCapacity || null,
+      container_count: count || 0,
+      weight_kg: weightKg || 0,
+    });
+    setFormSubmitting(false);
+
+    if (submitError) {
+      setFormError(submitError);
+      return;
+    }
+
+    setLinkLotId('');
+    setLinkHarvestId('');
+    setLinkContainerType('');
+    setLinkContainerCapacity('');
+    setLinkContainerCount('');
+    setShowLinkForm(false);
+  };
+
+  const handleAddDispatch = async (event: React.FormEvent) => {
+    event.preventDefault();
+    resetErrors();
+
+    if (!dispatchLotId || !dispatchDate) {
+      setFormError('Lot and dispatch date are required.');
+      return;
+    }
+
+    const units = dispatchUnits ? Number(dispatchUnits) : 0;
+
+    setFormSubmitting(true);
+    const { error: submitError } = await addDispatch({
+      lot_id: dispatchLotId,
+      dispatch_date: dispatchDate,
+      quantity_units: units,
+      destination: dispatchDestination.trim() || null,
+      vehicle: dispatchVehicle.trim() || null,
+      reference: dispatchReference.trim() || null,
+      notes: dispatchNotes.trim() || null,
+    });
+    if (!submitError && units) {
+      await addMovement({
+        lot_id: dispatchLotId,
+        movement_type: 'out',
+        quantity_units: units,
+        moved_at: dispatchDate,
+        reference: dispatchReference.trim() || 'Dispatch',
+        notes: dispatchNotes.trim() || null,
+      });
+    }
+    setFormSubmitting(false);
+
+    if (submitError) {
+      setFormError(submitError);
+      return;
+    }
+
+    setDispatchLotId('');
+    setDispatchDate('');
+    setDispatchUnits('');
+    setDispatchDestination('');
+    setDispatchVehicle('');
+    setDispatchReference('');
+    setDispatchNotes('');
+    setShowDispatchForm(false);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -335,6 +520,13 @@ export function StorageTracking() {
             <span>Add Location</span>
           </button>
           <button
+            onClick={() => setShowLinkForm(true)}
+            className="bg-slate-600 text-white px-3 py-2 rounded-lg hover:bg-slate-700 transition-colors flex items-center space-x-2"
+          >
+            <Link2 size={16} />
+            <span>Map Harvest</span>
+          </button>
+          <button
             onClick={() => setShowLotForm(true)}
             className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
           >
@@ -347,6 +539,13 @@ export function StorageTracking() {
           >
             <Truck size={16} />
             <span>Stock Move</span>
+          </button>
+          <button
+            onClick={() => setShowDispatchForm(true)}
+            className="bg-amber-600 text-white px-3 py-2 rounded-lg hover:bg-amber-700 transition-colors flex items-center space-x-2"
+          >
+            <Send size={16} />
+            <span>Dispatch</span>
           </button>
           <button
             onClick={() => setShowConditionForm(true)}
@@ -437,6 +636,21 @@ export function StorageTracking() {
               const balance = getLotBalance(lot.id, lot.unit_count);
               const latestCondition = (lotConditions[lot.id] || [])[0];
               const isExpanded = expandedLotId === lot.id;
+              const storageStart = lot.storage_date ? new Date(lot.storage_date) : null;
+              const storageEnd = lot.exit_date ? new Date(lot.exit_date) : new Date();
+              const storageDays = storageStart
+                ? Math.max(0, Math.floor((storageEnd.getTime() - storageStart.getTime()) / (1000 * 60 * 60 * 24)))
+                : 0;
+              const linkedHarvests = lotLinksByLot[lot.id] || [];
+              const traceFields = linkedHarvests
+                .map(link => {
+                  const harvestRecord = harvestById[link.harvest_id];
+                  const tree = harvestRecord?.tree_id ? treeById[harvestRecord.tree_id] : null;
+                  return tree?.field_id || null;
+                })
+                .filter((fieldId): fieldId is string => Boolean(fieldId));
+              const uniqueFields = Array.from(new Set(traceFields));
+              const sprayLogsForLot = uniqueFields.flatMap(fieldId => sprayByField[fieldId] || []);
 
               return (
                 <div key={lot.id} className="border border-gray-200 rounded-lg p-4">
@@ -455,6 +669,7 @@ export function StorageTracking() {
                       <p className="text-xs text-gray-500 mt-1">
                         Stored: {new Date(lot.storage_date).toLocaleDateString()}
                         {lot.exit_date ? ` • Exit: ${new Date(lot.exit_date).toLocaleDateString()}` : ''}
+                        {storageStart ? ` • ${storageDays} days in storage` : ''}
                       </p>
                     </div>
                     <div className="flex items-center gap-4">
@@ -488,6 +703,45 @@ export function StorageTracking() {
                   {isExpanded && (
                     <div className="mt-4 border-t border-gray-200 pt-4 space-y-3">
                       <div>
+                        <h4 className="text-sm font-semibold text-gray-900">Traceability</h4>
+                        {linkedHarvests.length === 0 ? (
+                          <p className="text-sm text-gray-500">No harvests linked to this lot.</p>
+                        ) : (
+                          <div className="mt-2 space-y-2">
+                            {linkedHarvests.map(link => {
+                              const harvestRecord = harvestById[link.harvest_id];
+                              const tree = harvestRecord?.tree_id ? treeById[harvestRecord.tree_id] : null;
+                              const field = tree?.field_id ? fieldById[tree.field_id] : null;
+                              return (
+                                <div key={link.id} className="text-sm border border-gray-100 rounded-lg p-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-medium text-gray-900">
+                                      {harvestRecord?.variety || 'Harvest'} · {link.container_count || 0} {link.container_type || 'units'}
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                      {harvestRecord?.harvest_date ? new Date(harvestRecord.harvest_date).toLocaleDateString() : 'Date N/A'}
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {field ? `Field: ${field.name}` : 'Field: N/A'}
+                                    {tree ? ` • Row ${tree.row_number}` : ''}
+                                    {link.weight_kg ? ` • ${link.weight_kg.toFixed(1)} kg` : ''}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {sprayLogsForLot.length > 0 && (
+                          <div className="mt-3 text-xs text-gray-600">
+                            Spray history: {sprayLogsForLot.length} log(s). Latest on{' '}
+                            {new Date(sprayLogsForLot[0].applied_at).toLocaleDateString()}.
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
                         <h4 className="text-sm font-semibold text-gray-900">Movement History</h4>
                         {(lotMovements[lot.id] || []).length === 0 && (
                           <p className="text-sm text-gray-500">No stock movements recorded.</p>
@@ -504,6 +758,28 @@ export function StorageTracking() {
                               <span className="text-xs text-gray-500">
                                 {new Date(move.moved_at || move.created_at || '').toLocaleDateString()}
                               </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-900">Dispatch Records</h4>
+                        {(dispatchByLot[lot.id] || []).length === 0 && (
+                          <p className="text-sm text-gray-500">No dispatch records yet.</p>
+                        )}
+                        <div className="mt-2 space-y-2">
+                          {(dispatchByLot[lot.id] || []).map(dispatch => (
+                            <div key={dispatch.id} className="text-sm border border-gray-100 rounded-lg p-2">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium text-gray-900">
+                                  {dispatch.quantity_units || 0} units · {dispatch.destination || 'Dispatch'}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {new Date(dispatch.dispatch_date).toLocaleDateString()}
+                                </span>
+                              </div>
+                              {dispatch.reference && <p className="text-xs text-gray-500">Ref: {dispatch.reference}</p>}
                             </div>
                           ))}
                         </div>
@@ -649,13 +925,22 @@ export function StorageTracking() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Batch Code</label>
-                    <input
-                      type="text"
-                      value={lotBatchCode}
-                      onChange={event => setLotBatchCode(event.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                      required
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={lotBatchCode}
+                        onChange={event => setLotBatchCode(event.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={generateLotId}
+                        className="px-3 py-2 text-xs border border-gray-300 rounded-lg hover:bg-gray-50"
+                      >
+                        Generate
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
@@ -868,6 +1153,221 @@ export function StorageTracking() {
                   <button
                     type="button"
                     onClick={() => setShowMovementForm(false)}
+                    className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLinkForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900">Map Harvest to Lot</h3>
+                <button onClick={() => setShowLinkForm(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+              </div>
+              <form className="space-y-4" onSubmit={handleAddLotLink}>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Lot</label>
+                  <select
+                    value={linkLotId}
+                    onChange={event => setLinkLotId(event.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    required
+                  >
+                    <option value="">Select lot</option>
+                    {filteredLots.map(lot => (
+                      <option key={lot.id} value={lot.id}>{lot.item_name} · {lot.batch_code}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Harvest Record</label>
+                  <select
+                    value={linkHarvestId}
+                    onChange={event => {
+                      const value = event.target.value;
+                      setLinkHarvestId(value);
+                      const record = harvestById[value];
+                      setLinkContainerType(record?.container_type || 'bin');
+                      setLinkContainerCapacity(record?.container_capacity || '');
+                      setLinkContainerCount(record?.bin_count?.toString() || '');
+                    }}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    required
+                  >
+                    <option value="">Select harvest</option>
+                    {harvest.map(record => {
+                      const tree = record.tree_id ? treeById[record.tree_id] : null;
+                      const field = tree?.field_id ? fieldById[tree.field_id] : null;
+                      return (
+                        <option key={record.id} value={record.id}>
+                          {record.variety} · {record.bin_count || 0} {record.container_type || 'containers'} · {field?.name || 'Field'}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Container</label>
+                    <input
+                      type="text"
+                      value={linkContainerType}
+                      onChange={event => setLinkContainerType(event.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Capacity (kg)</label>
+                    <input
+                      type="text"
+                      value={linkContainerCapacity}
+                      onChange={event => setLinkContainerCapacity(event.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Count</label>
+                    <input
+                      type="number"
+                      value={linkContainerCount}
+                      onChange={event => setLinkContainerCount(event.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                </div>
+                {formError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                    {formError}
+                  </div>
+                )}
+                <div className="flex space-x-3 pt-2">
+                  <button
+                    type="submit"
+                    disabled={formSubmitting}
+                    className="flex-1 bg-slate-600 text-white py-2 rounded-lg hover:bg-slate-700 disabled:opacity-60"
+                  >
+                    {formSubmitting ? 'Saving...' : 'Save Link'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLinkForm(false)}
+                    className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDispatchForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900">Dispatch Lot</h3>
+                <button onClick={() => setShowDispatchForm(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+              </div>
+              <form className="space-y-4" onSubmit={handleAddDispatch}>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Lot</label>
+                  <select
+                    value={dispatchLotId}
+                    onChange={event => setDispatchLotId(event.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    required
+                  >
+                    <option value="">Select lot</option>
+                    {filteredLots.map(lot => (
+                      <option key={lot.id} value={lot.id}>{lot.item_name} · {lot.batch_code}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Dispatch Date</label>
+                    <input
+                      type="date"
+                      value={dispatchDate}
+                      onChange={event => setDispatchDate(event.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Units</label>
+                    <input
+                      type="number"
+                      value={dispatchUnits}
+                      onChange={event => setDispatchUnits(event.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Destination</label>
+                  <input
+                    type="text"
+                    value={dispatchDestination}
+                    onChange={event => setDispatchDestination(event.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle</label>
+                    <input
+                      type="text"
+                      value={dispatchVehicle}
+                      onChange={event => setDispatchVehicle(event.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Reference</label>
+                    <input
+                      type="text"
+                      value={dispatchReference}
+                      onChange={event => setDispatchReference(event.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea
+                    value={dispatchNotes}
+                    onChange={event => setDispatchNotes(event.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    rows={2}
+                  />
+                </div>
+                {formError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                    {formError}
+                  </div>
+                )}
+                <div className="flex space-x-3 pt-2">
+                  <button
+                    type="submit"
+                    disabled={formSubmitting}
+                    className="flex-1 bg-amber-600 text-white py-2 rounded-lg hover:bg-amber-700 disabled:opacity-60"
+                  >
+                    {formSubmitting ? 'Saving...' : 'Save Dispatch'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowDispatchForm(false)}
                     className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
                   >
                     Cancel

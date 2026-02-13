@@ -8,6 +8,7 @@ import { useEquipment } from '../hooks/useEquipment';
 import { useFinances } from '../hooks/useFinances';
 import { OrchardMap } from './OrchardMap';
 import { PlantationRegister } from './PlantationRegister';
+import { CropStageManagement } from './CropStageManagement';
 import {
   Sprout,
   MapPin,
@@ -68,6 +69,7 @@ export function FieldManagement() {
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
   const [editFieldName, setEditFieldName] = useState('');
   const [showRegister, setShowRegister] = useState(false);
+  const [showStages, setShowStages] = useState(false);
 
   const crops = useMemo(() => {
     const unique = Array.from(new Set(fields.map(field => field.crop)));
@@ -223,6 +225,27 @@ export function FieldManagement() {
           </div>
         )}
       </div>
+
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Crop Stage Tracking</h3>
+            <p className="text-sm text-gray-600">Block-wise phenology updates for spray and nutrition timing</p>
+          </div>
+          <button
+            onClick={() => setShowStages(!showStages)}
+            className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            {showStages ? 'Hide Stages' : 'Show Stages'}
+          </button>
+        </div>
+        {showStages && (
+          <div className="mt-4">
+            <CropStageManagement />
+          </div>
+        )}
+      </div>
+
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-4">

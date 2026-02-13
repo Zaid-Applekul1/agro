@@ -9,6 +9,8 @@ import { usePestTreatments } from '../hooks/usePestTreatments';
 import { useOrchards } from '../hooks/useOrchards';
 import { useNursery } from '../hooks/useNursery';
 import { useSprayPrograms } from '../hooks/useSprayPrograms';
+import { useOrchardEstablishment } from '../hooks/useOrchardEstablishment';
+import { useCropStages } from '../hooks/useCropStages';
 import { ViewType } from '../types';
 import {
   TrendingUp,
@@ -48,6 +50,43 @@ const renderSparklinePoints = (values: number[], width: number, height: number, 
   }).join(' ');
 };
 
+const renderPieChart = (values: number[], colors: string[]) => {
+  const total = values.reduce((sum, value) => sum + value, 0);
+  if (!total) {
+    return (
+      <div className="h-24 w-24 rounded-full border border-dashed border-gray-200 flex items-center justify-center text-xs text-gray-400">
+        No data
+      </div>
+    );
+  }
+
+  let cumulative = 0;
+  return (
+    <svg viewBox="0 0 36 36" className="h-24 w-24">
+      <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#e5e7eb" strokeWidth="4" />
+      {values.map((value, index) => {
+        const fraction = value / total;
+        const dashArray = `${(fraction * 100).toFixed(3)} ${100 - fraction * 100}`;
+        const dashOffset = 25 - cumulative * 100;
+        cumulative += fraction;
+        return (
+          <circle
+            key={`${index}-${value}`}
+            cx="18"
+            cy="18"
+            r="15.915"
+            fill="transparent"
+            stroke={colors[index]}
+            strokeWidth="4"
+            strokeDasharray={dashArray}
+            strokeDashoffset={dashOffset}
+          />
+        );
+      })}
+    </svg>
+  );
+};
+
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { fields, loading: fieldsLoading } = useFields();
   const { finances, loading: financesLoading } = useFinances();
@@ -59,8 +98,17 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const { orchards, treePoints, loading: orchardsLoading } = useOrchards();
   const { batches: nurseryBatches, mortality: nurseryMortality, loading: nurseryLoading } = useNursery();
   const { logs: sprayLogs, loading: sprayLoading } = useSprayPrograms();
+  const { stages: cropStages, records: cropStageRecords, loading: cropStagesLoading } = useCropStages();
+  const {
+    establishments,
+    costs: establishmentCosts,
+    mortality: establishmentMortality,
+    replacements: establishmentReplacements,
+    yieldModels,
+    loading: establishmentLoading
+  } = useOrchardEstablishment();
 
-  const loading = fieldsLoading || financesLoading || inventoryLoading || equipmentLoading || harvestLoading || treesLoading || pestLoading || orchardsLoading || nurseryLoading || sprayLoading;
+  const loading = fieldsLoading || financesLoading || inventoryLoading || equipmentLoading || harvestLoading || treesLoading || pestLoading || orchardsLoading || nurseryLoading || sprayLoading || establishmentLoading || cropStagesLoading;
 
   const recentHarvest = useMemo(() => harvest.slice(0, 3), [harvest]);
   const recentFinances = useMemo(() => finances.slice(0, 5), [finances]);
@@ -76,6 +124,94 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       .sort((a, b) => new Date(a.entry_date).getTime() - new Date(b.entry_date).getTime());
     return sorted.slice(-6).map(entry => (entry.entry_type === 'income' ? 1 : -1) * (entry.amount || 0));
   }, [finances]);
+
+  const treeFieldMap = useMemo(() => {
+    const map = new Map<string, string>();
+    trees.forEach(tree => {
+      if (tree.id && tree.field_id) {
+        map.set(tree.id, tree.field_id);
+      }
+    });
+    return map;
+  }, [trees]);
+
+  const actualYieldByField = useMemo(() => {
+    const map = new Map<string, number>();
+    harvest.forEach(record => {
+      if (!record.tree_id) return;
+      const fieldId = treeFieldMap.get(record.tree_id);
+      if (!fieldId) return;
+      const capacity = Number(record.container_capacity || 0);
+      const fallbackCapacity = record.container_type === 'crate' && !capacity ? 17 : capacity;
+      const containers = record.bin_count || 0;
+      const weightKg = fallbackCapacity * containers;
+      if (!weightKg) return;
+      map.set(fieldId, (map.get(fieldId) || 0) + weightKg);
+    });
+    return map;
+  }, [harvest, treeFieldMap]);
+
+  const mortalityByEst = useMemo(() => {
+    return establishmentMortality.reduce<Record<string, number>>((acc, entry) => {
+      const key = entry.establishment_id;
+      acc[key] = (acc[key] || 0) + (entry.count || 0);
+      return acc;
+    }, {});
+  }, [establishmentMortality]);
+
+  const replacementsByEst = useMemo(() => {
+    return establishmentReplacements.reduce<Record<string, number>>((acc, entry) => {
+      const key = entry.establishment_id;
+      acc[key] = (acc[key] || 0) + (entry.count || 0);
+      return acc;
+    }, {});
+  }, [establishmentReplacements]);
+
+  const yieldModelRows = useMemo(() => {
+    return [...yieldModels].sort((a, b) => a.year_number - b.year_number);
+  }, [yieldModels]);
+
+  const establishmentCostTrend = useMemo(() => {
+    const sorted = [...establishmentCosts]
+      .filter(item => item.created_at)
+      .sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime());
+    return sorted.slice(-6).map(item => item.total_amount || 0);
+  }, [establishmentCosts]);
+
+  const cropStageById = useMemo(() => {
+    return cropStages.reduce<Record<string, typeof cropStages[number]>>((acc, stage) => {
+      acc[stage.id] = stage;
+      return acc;
+    }, {});
+  }, [cropStages]);
+
+  const latestStageByBlock = useMemo(() => {
+    const latest: Record<string, typeof cropStageRecords[number]> = {};
+    cropStageRecords.forEach(record => {
+      const key = record.tree_block_id || record.field_id || 'unknown';
+      const current = latest[key];
+      if (!current || record.stage_date > current.stage_date) {
+        latest[key] = record;
+      }
+    });
+    return Object.values(latest);
+  }, [cropStageRecords]);
+
+  const cropStageDistribution = useMemo(() => {
+    const counts: Record<string, number> = {};
+    latestStageByBlock.forEach(record => {
+      const stageName = cropStageById[record.stage_id]?.name || 'Unknown';
+      counts[stageName] = (counts[stageName] || 0) + 1;
+    });
+    return counts;
+  }, [latestStageByBlock, cropStageById]);
+
+  const topStage = useMemo(() => {
+    const entries = Object.entries(cropStageDistribution);
+    if (entries.length === 0) return null;
+    return entries.sort((a, b) => b[1] - a[1])[0];
+  }, [cropStageDistribution]);
+
 
   if (loading) {
     return (
@@ -138,6 +274,49 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const compliancePenalty = Math.min(20, complianceWarnings * 5);
   const carbonPenalty = Math.min(30, carbonEstimateKg / 10);
   const sustainabilityScore = clampScore(100 - chemicalPenalty - compliancePenalty - carbonPenalty);
+
+  const currentYear = new Date().getFullYear();
+  const selectYieldRow = (age: number) => {
+    if (yieldModelRows.length === 0) {
+      return { year_number: age, min_kg: 0, max_kg: 0 };
+    }
+    const exact = yieldModelRows.find(row => row.year_number === age);
+    if (exact) return exact;
+    const first = yieldModelRows[0];
+    const last = yieldModelRows[yieldModelRows.length - 1];
+    return age > last.year_number ? last : first;
+  };
+
+  const totalPlannedTrees = establishments.reduce(
+    (sum, est) => sum + Math.round((est.trees_per_kanal || 0) * Number(est.total_kanal || 0)),
+    0
+  );
+  const totalDeadTrees = establishmentMortality.reduce((sum, entry) => sum + (entry.count || 0), 0);
+  const totalReplacedTrees = establishmentReplacements.reduce((sum, entry) => sum + (entry.count || 0), 0);
+  const totalLiveTrees = Math.max(0, totalPlannedTrees - totalDeadTrees + totalReplacedTrees);
+  const establishmentMortalityRate = totalPlannedTrees > 0 ? (totalDeadTrees / totalPlannedTrees) * 100 : 0;
+
+  const establishmentCostTotal = establishmentCosts.reduce((sum, item) => sum + (item.total_amount || 0), 0);
+  const establishmentKanalTotal = establishments.reduce((sum, est) => sum + (est.total_kanal || 0), 0);
+  const establishmentCostPerKanal = establishmentKanalTotal > 0
+    ? establishmentCostTotal / establishmentKanalTotal
+    : 0;
+
+  const forecastYieldKg = establishments.reduce((sum, est) => {
+    const planned = Math.round((est.trees_per_kanal || 0) * Number(est.total_kanal || 0));
+    const dead = mortalityByEst[est.id] || 0;
+    const replaced = replacementsByEst[est.id] || 0;
+    const live = Math.max(0, planned - dead + replaced);
+    const age = Math.max(1, currentYear - est.plantation_year + 1);
+    const row = selectYieldRow(age);
+    const avgYield = ((row.min_kg || 0) + (row.max_kg || 0)) / 2;
+    return sum + avgYield * live;
+  }, 0);
+
+  const actualYieldKg = establishments.reduce((sum, est) => {
+    if (!est.field_id) return sum;
+    return sum + (actualYieldByField.get(est.field_id) || 0);
+  }, 0);
 
   const todayLabel = new Date().toLocaleDateString('en-GB', {
     weekday: 'long',
@@ -347,6 +526,133 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-emerald-600">Orchard Establishment</p>
+            <h3 className="mt-2 text-xl font-semibold text-gray-900">Establishment Snapshot</h3>
+            <p className="text-sm text-gray-600">Planned vs live trees, costs, and yield outlook.</p>
+          </div>
+          <div className="text-right text-xs text-gray-500">
+            {establishments.length} active plans
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
+            <p className="text-xs text-emerald-700">Planned Trees</p>
+            <p className="text-2xl font-bold text-emerald-900 mt-1">{totalPlannedTrees.toLocaleString()}</p>
+          </div>
+          <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+            <p className="text-xs text-blue-700">Live Trees</p>
+            <p className="text-2xl font-bold text-blue-900 mt-1">{totalLiveTrees.toLocaleString()}</p>
+          </div>
+          <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
+            <p className="text-xs text-amber-700">Mortality Rate</p>
+            <p className="text-2xl font-bold text-amber-900 mt-1">{establishmentMortalityRate.toFixed(1)}%</p>
+          </div>
+          <div className="rounded-xl border border-purple-100 bg-purple-50 p-4">
+            <p className="text-xs text-purple-700">Establishment Cost</p>
+            <p className="text-2xl font-bold text-purple-900 mt-1">₹{establishmentCostTotal.toLocaleString()}</p>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-xs text-slate-700">Cost / Kanal</p>
+            <p className="text-2xl font-bold text-slate-900 mt-1">₹{Math.round(establishmentCostPerKanal).toLocaleString()}</p>
+          </div>
+          <div className="rounded-xl border border-emerald-100 bg-white p-4">
+            <p className="text-xs text-gray-500">Forecast vs Actual (kg)</p>
+            <p className="text-lg font-semibold text-gray-900 mt-2">
+              {Math.round(actualYieldKg).toLocaleString()} / {Math.round(forecastYieldKg).toLocaleString()}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-900">Establishment Cost Trend</p>
+              <span className="text-xs text-gray-500">Last 6 entries</span>
+            </div>
+            <div className="mt-3">
+              {establishmentCostTrend.length > 0 ? (
+                <svg viewBox="0 0 160 48" className="h-12 w-full">
+                  <polyline
+                    fill="none"
+                    stroke="#4f46e5"
+                    strokeWidth="2"
+                    points={renderSparklinePoints(establishmentCostTrend, 160, 48, 4)}
+                  />
+                </svg>
+              ) : (
+                <p className="text-sm text-gray-500">No cost entries yet.</p>
+              )}
+            </div>
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-900">Forecast vs Actual Yield</p>
+              <span className="text-xs text-gray-500">This year</span>
+            </div>
+            <div className="mt-3 flex items-center gap-4">
+              {renderPieChart(
+                [actualYieldKg, Math.max(forecastYieldKg - actualYieldKg, 0)],
+                ['#059669', '#d1fae5']
+              )}
+              <div className="text-xs text-gray-600 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-600" />
+                  Actual: {Math.round(actualYieldKg).toLocaleString()} kg
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-100" />
+                  Remaining: {Math.round(Math.max(forecastYieldKg - actualYieldKg, 0)).toLocaleString()} kg
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-green-600">Crop Stage</p>
+            <h3 className="mt-2 text-xl font-semibold text-gray-900">Phenology Pulse</h3>
+            <p className="text-sm text-gray-600">Latest stages by block and variety.</p>
+          </div>
+          <div className="text-right text-xs text-gray-500">
+            {latestStageByBlock.length} blocks updated
+          </div>
+        </div>
+
+        {latestStageByBlock.length === 0 ? (
+          <p className="mt-4 text-sm text-gray-500">No crop stage updates yet.</p>
+        ) : (
+          <div className="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              {renderPieChart(
+                Object.values(cropStageDistribution),
+                ['#16a34a', '#0ea5e9', '#f59e0b', '#7c3aed', '#ef4444', '#64748b']
+              )}
+              <div className="text-sm text-gray-600 space-y-1">
+                {Object.entries(cropStageDistribution).map(([stage, count]) => (
+                  <div key={stage} className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    {stage}: {count}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm">
+              <p className="text-xs text-emerald-700">Top Stage</p>
+              <p className="text-lg font-semibold text-emerald-900 mt-1">
+                {topStage ? `${topStage[0]} (${topStage[1]})` : 'N/A'}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Summary Cards */}
